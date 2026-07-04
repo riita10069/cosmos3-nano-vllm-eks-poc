@@ -19,6 +19,7 @@ terraform.rc
 
 # Secrets — NGC_API_KEY must never be committed (see docs/SECURITY.md)
 .env
+.secrets/
 *.pem
 *.key
 
