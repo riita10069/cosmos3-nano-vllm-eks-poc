@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cosmos3-nano-vllm
+  namespace: cosmos
+  labels:
+    app: cosmos3-nano-vllm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cosmos3-nano-vllm
+  template:
+    metadata:
+      labels:
+        app: cosmos3-nano-vllm
+    spec:
+      nodeSelector:
+        workload: cosmos
+        accelerator: nvidia
+
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+
+      containers:
+        - name: vllm
+          # Pinned tag (do not use :latest). NVIDIA Cosmos cookbook requires
+          # vllm>=0.23.0 for the Cosmos3 Reasoner path. Update per README.
+          image: vllm/vllm-openai:v0.24.0-cu129-ubuntu2404
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - "vllm"
+            - "serve"
+            - "nvidia/Cosmos3-Nano"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+            - "--async-scheduling"
+            - "--allowed-local-media-path"
+            - "/"
+            - "--init-timeout"
+            - "1800"
+            - "--trust-remote-code"
+
+          ports:
+            - containerPort: 8000
+              name: http
+
+          env:
+            - name: HF_HOME
+              value: /cache/huggingface
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token-secret
+                  key: HF_TOKEN
+                  optional: true
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token-secret
+                  key: HF_TOKEN
+                  optional: true
+            - name: VLLM_USE_DEEP_GEMM
+              value: "0"
+
+          resources:
+            requests:
+              nvidia.com/gpu: "1"
+              cpu: "6"
+              memory: "48Gi"
+              ephemeral-storage: "250Gi"
+            limits:
+              nvidia.com/gpu: "1"
+              cpu: "8"
+              memory: "64Gi"
+              ephemeral-storage: "450Gi"
+
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /cache/huggingface
+            - name: shm
+              mountPath: /dev/shm
+
+          startupProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 30
+            failureThreshold: 120
+
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 15
+            failureThreshold: 8
+
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 900
+            periodSeconds: 60
+            failureThreshold: 5
+
+      volumes:
+        - name: hf-cache
+          emptyDir:
+            sizeLimit: 400Gi
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi

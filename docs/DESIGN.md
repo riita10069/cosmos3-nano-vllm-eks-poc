@@ -1,0 +1,83 @@
+# DESIGN
+
+## Goal
+
+A minimal, repeatable **PoC** that stands up NVIDIA **Cosmos3-Nano** on Amazon
+EKS via **vLLM**, callable through an OpenAI-compatible API over
+`kubectl port-forward`. Optimized for "it starts and answers", not production.
+
+## Architecture
+
+```text
+Developer laptop
+  | terraform apply
+  v
+AWS account
+  +-- VPC (2 public + 2 private subnets, 1 NAT gateway)
+  +-- EKS cluster
+        +-- system node group   (AL2023 STANDARD, m7i.large)   -> CoreDNS etc.
+        +-- gpu node group       (AL2023 NVIDIA, g6e.2xlarge)
+              - taint  nvidia.com/gpu=true:NoSchedule
+              - labels workload=cosmos, accelerator=nvidia, nodepool=gpu-cosmos
+
+Kubernetes
+  +-- NVIDIA device plugin (Helm)   -> advertises nvidia.com/gpu
+  +-- namespace/cosmos
+        +-- (optional) Secret hf-token-secret
+        +-- Deployment cosmos3-nano-vllm   (vllm/vllm-openai, 1x nvidia.com/gpu)
+        +-- Service    cosmos3-nano-vllm    (ClusterIP :8000)
+
+Local client
+  +-- kubectl port-forward svc/cosmos3-nano-vllm 8000:8000
+  +-- POST http://127.0.0.1:8000/v1/chat/completions
+```
+
+## Key decisions
+
+### Terraform owns AWS infra only
+
+Terraform creates VPC, subnets, NAT, EKS, node groups, IAM, SGs, core addons
+(vpc-cni, kube-proxy, coredns), and outputs. It intentionally does **not** create
+Kubernetes workloads, the device plugin, the HF token, or any Secret. That keeps
+`HF_TOKEN` out of Terraform state and makes the k8s layer fast to iterate via
+`scripts/` + `kubectl`/`helm`.
+
+### emptyDir for the HF cache
+
+The PoC mounts an `emptyDir` for `HF_HOME` instead of a PVC — no EBS CSI driver,
+no IRSA, no StorageClass/PVC troubleshooting. Trade-off: a pod restart re-downloads
+the ~16B model. Production should use a gp3 PVC / EFS / FSx or a pre-baked cache.
+
+### `--trust-remote-code` and `VLLM_USE_DEEP_GEMM=0`
+
+Cosmos3 ships custom model code, so vLLM needs `--trust-remote-code`. NVIDIA's
+Cosmos cookbook notes DeepGEMM may be unavailable in some vLLM builds; the sample
+sets `VLLM_USE_DEEP_GEMM=0` to avoid one class of startup failure.
+
+### Generous probes / timeouts
+
+First boot pulls the vLLM image, downloads ~16B of weights from Hugging Face, and
+initializes the engine — this can take many minutes. The startupProbe allows up to
+~60 min (120 × 30s) and `vllm serve --init-timeout 1800`.
+
+## History: two pivots
+
+1. **SageMaker → EKS.** Cosmos3-Nano needs a single L40S-class GPU (48 GB / >56 GB).
+   SageMaker `ml.g6e` *endpoint* quota was 0 in every region checked, while plain
+   **EC2 g6e** quota was generous and capacity was launchable. So hosting moved to
+   EKS on `g6e`.
+2. **NIM → vLLM.** The NGC key authenticated but its org lacked NIM entitlement, so
+   every NIM pull returned `402 Payment Required` (cosmos3 and llama alike). Rather
+   than enroll in a paid/trial NVIDIA AI Enterprise subscription, the PoC serves the
+   open HF checkpoint with vLLM — no NGC dependency at all.
+
+## What changes for production
+
+ALB or API Gateway; authn/authz; request validation; rate limiting; structured
+prompt templates; ECR mirror of the vLLM image; persistent model cache
+(gp3/EFS/FSx/pre-baked); External Secrets / Secrets Manager; CloudWatch /
+Prometheus / DCGM exporter; HPA + Karpenter; multi-replica; canary / blue-green;
+security-group hardening; NetworkPolicy; cost alarms; model-quality evaluation.
+
+**This PoC is not safety-certified and must not be used for autonomous-driving
+control or planning.**

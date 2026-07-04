@@ -1,0 +1,15 @@
+aws_region         = "us-east-1"
+name_prefix        = "cosmos3-vllm-poc"
+kubernetes_version = "1.34"
+
+# Start with g6e.2xlarge for more CPU/memory headroom.
+# g6e.xlarge may work but is tighter for a 16B BF16 model + vLLM runtime.
+gpu_instance_type = "g6e.2xlarge"
+
+gpu_node_disk_size = 500
+
+tags = {
+  Project     = "cosmos3-nano-vllm-eks-poc"
+  Environment = "poc"
+  Owner       = "your-name"
+}

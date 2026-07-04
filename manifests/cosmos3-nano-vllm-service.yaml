@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cosmos3-nano-vllm
+  namespace: cosmos
+  labels:
+    app: cosmos3-nano-vllm
+spec:
+  type: ClusterIP
+  selector:
+    app: cosmos3-nano-vllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
