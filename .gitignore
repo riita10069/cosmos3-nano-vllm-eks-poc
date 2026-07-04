@@ -1,0 +1,28 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.terraform.lock.hcl
+
+# Never commit real tfvars (may contain account IDs, ARNs, image URIs)
+*.tfvars
+!*.tfvars.example
+
+# Secrets — NGC_API_KEY must never be committed (see docs/SECURITY.md)
+.env
+*.pem
+*.key
+
+# Editor / OS backups
+*~
+.DS_Store
+*.swp
