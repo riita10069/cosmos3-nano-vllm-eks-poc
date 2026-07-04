@@ -22,6 +22,14 @@ Confirm the GPU node group uses `AL2023_x86_64_NVIDIA`. That AMI includes the
 driver + container toolkit but **not** the device plugin — install it separately
 (`scripts/02-install-device-plugin.sh`).
 
+**Device plugin shows `DESIRED 0` / GPU stays 0 on a tainted node.** The chart's
+node-feature-discovery (NFD) worker only tolerates `nvidia.com/gpu=present`, but
+this sample taints the GPU node `nvidia.com/gpu=true`. Without a matching
+toleration the NFD worker never lands on the GPU node, so the node is never
+labeled and the plugin never schedules. `scripts/02-install-device-plugin.sh`
+fixes this by overriding the NFD worker toleration to `operator: Exists`. If you
+install the chart manually, pass the same override.
+
 ## Model download is slow
 
 Expected. `nvidia/Cosmos3-Nano` is ~16B params / BF16. Watch progress:
