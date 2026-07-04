@@ -87,11 +87,15 @@ kubectl get nodes \
 # expect the g6e node to show GPU = 1
 ```
 
-## The vLLM container tag
+## The vLLM container image
 
-The Deployment pins `vllm/vllm-openai:v0.24.0-cu129-ubuntu2404` (NVIDIA's Cosmos
-cookbook requires `vllm>=0.23.0`; `vllm/vllm-openai:v0.23.0` also works). Do not
-use `:latest`. To update, edit `manifests/cosmos3-nano-vllm-deployment.yaml`.
+The Deployment uses **`vllm/vllm-omni:cosmos3`** — NVIDIA's release-tested image
+that bundles the `vllm-cosmos3` plugin. **The plain `vllm/vllm-openai` image does
+not support the Cosmos3 architecture and fails at startup.** This image and its
+serving command were verified end-to-end on an EC2 `g6e` (L40S): text and image
+reasoning both worked. See [docs/DESIGN.md](docs/DESIGN.md) for the two flags that
+matter (`--max-model-len` and `--media-io-kwargs`). To update, edit
+`manifests/cosmos3-nano-vllm-deployment.yaml`.
 
 ## Cost
 

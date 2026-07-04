@@ -24,7 +24,7 @@ Kubernetes
   +-- NVIDIA device plugin (Helm)   -> advertises nvidia.com/gpu
   +-- namespace/cosmos
         +-- (optional) Secret hf-token-secret
-        +-- Deployment cosmos3-nano-vllm   (vllm/vllm-openai, 1x nvidia.com/gpu)
+        +-- Deployment cosmos3-nano-vllm   (vllm/vllm-omni:cosmos3, 1x nvidia.com/gpu)
         +-- Service    cosmos3-nano-vllm    (ClusterIP :8000)
 
 Local client
@@ -48,11 +48,29 @@ The PoC mounts an `emptyDir` for `HF_HOME` instead of a PVC — no EBS CSI drive
 no IRSA, no StorageClass/PVC troubleshooting. Trade-off: a pod restart re-downloads
 the ~16B model. Production should use a gp3 PVC / EFS / FSx or a pre-baked cache.
 
-### `--trust-remote-code` and `VLLM_USE_DEEP_GEMM=0`
+### Container image and serving command (verified on real hardware)
 
-Cosmos3 ships custom model code, so vLLM needs `--trust-remote-code`. NVIDIA's
-Cosmos cookbook notes DeepGEMM may be unavailable in some vLLM builds; the sample
-sets `VLLM_USE_DEEP_GEMM=0` to avoid one class of startup failure.
+The Deployment uses **`vllm/vllm-omni:cosmos3`**, NVIDIA's release-tested image
+that bundles the `vllm-cosmos3` plugin (vLLM 0.21.0). The plain
+`vllm/vllm-openai` image does **not** recognize the Cosmos3 architecture and
+fails at engine startup (`Model architectures ['Cosmos3...'] are not supported`).
+
+This image + command were validated on an EC2 `g6e.xlarge` (L40S 48 GB): both a
+text prompt and an image prompt returned correct answers via
+`/v1/chat/completions`. Two non-obvious flags matter:
+
+- **`--max-model-len 32768`** — the model's default max length (262144) requires
+  ~36 GB of KV cache; an L40S only has ~21 GB free after weights, so engine init
+  fails with a `ValueError`. 32768 fits comfortably and is ample for a PoC. Raise
+  it on larger-memory GPUs (H100/H200).
+- **`--media-io-kwargs '{"video": {"num_frames": -1}}'`** — matches NVIDIA's
+  reasoner serving guidance for video inputs.
+
+Note: the model card's `--hf-overrides '{"architectures":
+["Cosmos3ReasonerForConditionalGeneration"]}'` is **not** used — this image's
+vLLM only accepts the config.json default `Cosmos3ForConditionalGeneration`,
+which serves chat/reasoning correctly. `VLLM_USE_DEEP_GEMM=0` is set defensively
+per the Cosmos cookbook to avoid a DeepGEMM-unavailable startup failure.
 
 ### Generous probes / timeouts
 

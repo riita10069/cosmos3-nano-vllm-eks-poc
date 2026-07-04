@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_URL="${1:-https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Fronalpstock_big.jpg/1280px-Fronalpstock_big.jpg}"
+# Default image is hosted on raw.githubusercontent.com because it serves
+# without a User-Agent requirement. (Wikimedia returns HTTP 403 to the vLLM
+# fetcher, which has no browser User-Agent.) Pass any public image URL as $1.
+IMAGE_URL="${1:-https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg}"
 
 curl -sS http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \

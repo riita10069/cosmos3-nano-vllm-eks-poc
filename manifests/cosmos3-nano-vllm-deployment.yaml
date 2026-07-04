@@ -27,9 +27,12 @@ spec:
 
       containers:
         - name: vllm
-          # Pinned tag (do not use :latest). NVIDIA Cosmos cookbook requires
-          # vllm>=0.23.0 for the Cosmos3 Reasoner path. Update per README.
-          image: vllm/vllm-openai:v0.24.0-cu129-ubuntu2404
+          # Pinned NVIDIA release-tested image that BUNDLES the vllm-cosmos3
+          # plugin (vLLM 0.21.0). The plain vllm/vllm-openai image does NOT
+          # support the Cosmos3 architecture and fails at startup. This exact
+          # image + command were verified on an EC2 g6e (L40S 48GB): text and
+          # image reasoning both returned correct answers. See docs/DESIGN.md.
+          image: vllm/vllm-omni:cosmos3
           imagePullPolicy: IfNotPresent
 
           command:
@@ -40,12 +43,20 @@ spec:
             - "0.0.0.0"
             - "--port"
             - "8000"
+            - "--tensor-parallel-size"
+            - "1"
+            # L40S has ~21GB free for KV cache after weights; the model default
+            # (262144) needs ~36GB and crashes engine init. 32768 fits and is
+            # plenty for a PoC. Raise on larger-memory GPUs.
+            - "--max-model-len"
+            - "32768"
             - "--async-scheduling"
             - "--allowed-local-media-path"
             - "/"
+            - "--media-io-kwargs"
+            - '{"video": {"num_frames": -1}}'
             - "--init-timeout"
             - "1800"
-            - "--trust-remote-code"
 
           ports:
             - containerPort: 8000

@@ -58,9 +58,22 @@ curl -v http://127.0.0.1:8000/v1/models
 If `/v1/models` returns the model id, the server is up. If the port-forward drops,
 the pod may still be initializing (not yet Ready) — re-check rollout status.
 
-## Cosmos3-Nano not yet supported by the pinned vLLM tag
+## `Model architectures ['Cosmos3...'] are not supported`
 
-If `vllm serve` errors that the architecture/model is unknown, bump the image tag
-in `manifests/cosmos3-nano-vllm-deployment.yaml` to a newer
-`vllm/vllm-openai:vX.Y.Z-...` that lists Cosmos3 support, then
-`kubectl -n cosmos rollout restart deploy/cosmos3-nano-vllm`.
+You are using the wrong image. The Cosmos3 architecture is only available in
+**`vllm/vllm-omni:cosmos3`** (bundles the `vllm-cosmos3` plugin), not in
+`vllm/vllm-openai`. The manifest already uses the omni image; if you changed it,
+change it back.
+
+## Engine init `ValueError: ... KV cache is needed, which is larger than available`
+
+The model's default max length (262144) needs ~36 GB of KV cache; an L40S has
+only ~21 GB free after weights. The manifest sets `--max-model-len 32768` to fit.
+If you raised it, lower it again, or move to a larger-memory GPU (H100/H200).
+
+## Image URL returns 403 / Forbidden
+
+Some hosts (e.g. Wikimedia) reject fetches with no browser User-Agent, which is
+how vLLM fetches media. Use a permissive host such as
+`https://raw.githubusercontent.com/...`. The sample's default image URL already
+points at one.
