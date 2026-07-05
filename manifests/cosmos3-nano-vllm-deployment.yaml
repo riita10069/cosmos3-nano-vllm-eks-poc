@@ -55,8 +55,6 @@ spec:
             - "/"
             - "--media-io-kwargs"
             - '{"video": {"num_frames": -1}}'
-            - "--init-timeout"
-            - "1800"
 
           ports:
             - containerPort: 8000
