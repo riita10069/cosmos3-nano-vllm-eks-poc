@@ -74,16 +74,21 @@ per the Cosmos cookbook to avoid a DeepGEMM-unavailable startup failure.
 
 ### Generous probes / timeouts
 
-First boot pulls the vLLM image, downloads ~16B of weights from Hugging Face, and
-initializes the engine — this can take many minutes. The startupProbe allows up to
-~60 min (120 × 30s) and `vllm serve --init-timeout 1800`.
+First boot pulls the vLLM image (~10 GB), downloads ~28 GB of weights from Hugging
+Face, and initializes the engine — this can take many minutes. The startupProbe
+allows up to ~60 min (120 × 30s) before the container is considered failed; while
+it runs, Kubernetes disables the readiness/liveness probes, so those only take
+effect once the server is up. (`--init-timeout` is intentionally *not* passed —
+it is not a recognized flag in the vLLM 0.21 build inside `vllm/vllm-omni:cosmos3`
+and the container errors out if you add it.)
 
 ## History: two pivots
 
-1. **SageMaker → EKS.** Cosmos3-Nano needs a single L40S-class GPU (48 GB / >56 GB).
-   SageMaker `ml.g6e` *endpoint* quota was 0 in every region checked, while plain
-   **EC2 g6e** quota was generous and capacity was launchable. So hosting moved to
-   EKS on `g6e`.
+1. **SageMaker → EKS.** Cosmos3-Nano runs on a single L40S-class GPU (48 GB).
+   SageMaker `ml.g6e` *endpoint* quota was 0 in every region checked, while the
+   plain **EC2 g6e** On-Demand quota could be raised and capacity was launchable.
+   So hosting moved to EKS on `g6e`. The sample was verified on `g6e` (L40S 48 GB)
+   and defaults to `g6e.2xlarge` for CPU/RAM headroom during model load.
 2. **NIM → vLLM.** The NGC key authenticated but its org lacked NIM entitlement, so
    every NIM pull returned `402 Payment Required` (cosmos3 and llama alike). Rather
    than enroll in a paid/trial NVIDIA AI Enterprise subscription, the PoC serves the

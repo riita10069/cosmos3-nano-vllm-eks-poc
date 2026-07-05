@@ -3,6 +3,10 @@ SHELL := /usr/bin/env bash
 AWS_REGION ?= us-east-1
 CLUSTER_NAME ?= cosmos3-vllm-poc
 
+# Override on the CLI, e.g. `make invoke-image IMAGE_URL=https://.../pic.jpg`
+IMAGE_URL ?=
+VIDEO_URL ?=
+
 .PHONY: check tf-init tf-apply kubeconfig device-plugin hf-secret deploy wait port-forward invoke-text invoke-image invoke-video clean-k8s tf-destroy
 
 check:
@@ -36,10 +40,11 @@ invoke-text:
 	./scripts/07-invoke-text.sh
 
 invoke-image:
-	./scripts/08-invoke-image.sh
+	./scripts/08-invoke-image.sh $(IMAGE_URL)
 
 invoke-video:
-	./scripts/09-invoke-video.sh
+	@test -n "$(VIDEO_URL)" || { echo "Set VIDEO_URL, e.g. make invoke-video VIDEO_URL=https://.../clip.mp4" >&2; exit 1; }
+	./scripts/09-invoke-video.sh $(VIDEO_URL)
 
 clean-k8s:
 	./scripts/10-clean-k8s.sh

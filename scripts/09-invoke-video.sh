@@ -9,6 +9,12 @@ fi
 
 VIDEO_URL="$1"
 
+# Preflight: the endpoint is reached via scripts/06-port-forward.sh.
+if ! curl -sf -o /dev/null http://127.0.0.1:8000/v1/models; then
+  echo "Cannot reach http://127.0.0.1:8000 — is scripts/06-port-forward.sh running?" >&2
+  exit 1
+fi
+
 curl -sS http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d @- <<EOF | jq .

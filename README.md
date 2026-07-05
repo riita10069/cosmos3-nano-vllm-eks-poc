@@ -36,8 +36,17 @@ checkpoint `nvidia/Cosmos3-Nano` with vLLM** instead. No NGC key, no NIM.
 
 - AWS CLI, Terraform (>= 1.6), `kubectl`, `helm`, `curl`, `jq`
 - AWS credentials able to create VPC / EKS / IAM / EC2
-- **GPU instance quota** for `g6e.xlarge` or `g6e.2xlarge` (SageMaker quota is
-  irrelevant here — this uses plain EC2 GPU quota, which is usually generous)
+- **EC2 GPU quota + capacity for `g6e`.** This uses plain EC2 GPU quota (the
+  "Running On-Demand G and VT instances" vCPU limit), *not* SageMaker quota.
+  On new accounts this limit is often **0** and needs a quota-increase request
+  (can take hours). Check and request before `apply`:
+  ```bash
+  # G/VT On-Demand vCPU limit (need >= 8 for g6e.2xlarge, plus headroom)
+  aws service-quotas get-service-quota \
+    --service-code ec2 --quota-code L-DB2E81BA --region "$AWS_REGION"
+  ```
+  Also pick a region/AZ that actually offers g6e (e.g. `us-east-1`, `us-west-2`,
+  `us-east-2`) — it is not in every AZ. This sample was verified in `us-west-2`.
 - Optional `HF_TOKEN` (the model is public, but a token helps with rate limits)
 
 ## Quick start

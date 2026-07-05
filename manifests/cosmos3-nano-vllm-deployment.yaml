@@ -114,6 +114,10 @@ spec:
             periodSeconds: 15
             failureThreshold: 8
 
+          # Liveness/readiness are gated by the startupProbe above: while startup
+          # is in progress Kubernetes disables both, so this only takes effect
+          # once the server is already up. initialDelaySeconds is thus a belt-and-
+          # suspenders margin, not the primary load-time budget.
           livenessProbe:
             tcpSocket:
               port: 8000

@@ -6,6 +6,12 @@ set -euo pipefail
 # fetcher, which has no browser User-Agent.) Pass any public image URL as $1.
 IMAGE_URL="${1:-https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg}"
 
+# Preflight: the endpoint is reached via scripts/06-port-forward.sh.
+if ! curl -sf -o /dev/null http://127.0.0.1:8000/v1/models; then
+  echo "Cannot reach http://127.0.0.1:8000 — is scripts/06-port-forward.sh running?" >&2
+  exit 1
+fi
+
 curl -sS http://127.0.0.1:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d @- <<EOF | jq .
