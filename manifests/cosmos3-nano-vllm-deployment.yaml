@@ -7,6 +7,12 @@ metadata:
     app: cosmos3-nano-vllm
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate): the node has exactly 1 GPU and the pod
+  # requests 1. Under the default RollingUpdate, a new pod is created before
+  # the old one terminates, but it can never schedule (no free GPU) — the
+  # rollout deadlocks. Recreate tears the old pod down first. (Hit this live.)
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: cosmos3-nano-vllm
