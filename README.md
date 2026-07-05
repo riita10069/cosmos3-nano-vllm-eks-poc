@@ -60,8 +60,8 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 # edit terraform.tfvars (region, instance type, ...)
 cd terraform && terraform init && terraform apply && cd ..
 
-# 2. kubeconfig
-export AWS_REGION=us-east-1 CLUSTER_NAME=cosmos3-vllm-poc
+# 2. kubeconfig  (AWS_REGION must match terraform.tfvars; e.g. us-west-2)
+export AWS_REGION=us-west-2 CLUSTER_NAME=cosmos3-vllm-poc
 ./scripts/01-update-kubeconfig.sh
 
 # 3. NVIDIA device plugin (advertises nvidia.com/gpu)
