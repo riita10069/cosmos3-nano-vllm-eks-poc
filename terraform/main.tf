@@ -10,15 +10,11 @@
 # in Terraform state.
 ##############################################################################
 
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 locals {
   name = var.name_prefix
 
-  # Two AZs is enough for a PoC. Deterministically take the first two.
-  azs = slice(data.aws_availability_zones.available.names, 0, 2)
+  # Explicit zones avoid depending on AWS API result order.
+  azs = var.availability_zones
 
   # Carve the VPC CIDR into 4 /20 subnets: 2 public, 2 private.
   public_subnet_cidrs  = [cidrsubnet(var.vpc_cidr, 4, 0), cidrsubnet(var.vpc_cidr, 4, 1)]
@@ -224,8 +220,9 @@ resource "aws_eks_node_group" "system" {
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = aws_subnet.private[*].id
 
-  ami_type       = "AL2023_x86_64_STANDARD"
-  instance_types = [var.system_instance_type]
+  ami_type        = "AL2023_x86_64_STANDARD"
+  instance_types  = [var.system_instance_type]
+  release_version = var.system_ami_release_version
 
   scaling_config {
     desired_size = 2
@@ -251,9 +248,10 @@ resource "aws_eks_node_group" "gpu" {
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = aws_subnet.private[*].id
 
-  ami_type       = "AL2023_x86_64_NVIDIA"
-  instance_types = [var.gpu_instance_type]
-  disk_size      = var.gpu_node_disk_size
+  ami_type        = "AL2023_x86_64_NVIDIA"
+  instance_types  = [var.gpu_instance_type]
+  disk_size       = var.gpu_node_disk_size
+  release_version = var.gpu_ami_release_version
 
   scaling_config {
     desired_size = 1
@@ -287,7 +285,7 @@ resource "aws_eks_node_group" "gpu" {
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name  = aws_eks_cluster.this.name
   addon_name    = "vpc-cni"
-  addon_version = data.aws_eks_addon_version.vpc_cni.version
+  addon_version = var.vpc_cni_addon_version
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
@@ -298,7 +296,7 @@ resource "aws_eks_addon" "vpc_cni" {
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name  = aws_eks_cluster.this.name
   addon_name    = "kube-proxy"
-  addon_version = data.aws_eks_addon_version.kube_proxy.version
+  addon_version = var.kube_proxy_addon_version
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
@@ -309,30 +307,10 @@ resource "aws_eks_addon" "kube_proxy" {
 resource "aws_eks_addon" "coredns" {
   cluster_name  = aws_eks_cluster.this.name
   addon_name    = "coredns"
-  addon_version = data.aws_eks_addon_version.coredns.version
+  addon_version = var.coredns_addon_version
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [aws_eks_node_group.system]
-}
-
-# Resolve the default addon version for the chosen Kubernetes version so we
-# never pin a version that is invalid for the cluster.
-data "aws_eks_addon_version" "vpc_cni" {
-  addon_name         = "vpc-cni"
-  kubernetes_version = aws_eks_cluster.this.version
-  most_recent        = true
-}
-
-data "aws_eks_addon_version" "kube_proxy" {
-  addon_name         = "kube-proxy"
-  kubernetes_version = aws_eks_cluster.this.version
-  most_recent        = true
-}
-
-data "aws_eks_addon_version" "coredns" {
-  addon_name         = "coredns"
-  kubernetes_version = aws_eks_cluster.this.version
-  most_recent        = true
 }

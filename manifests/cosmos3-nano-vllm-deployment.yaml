@@ -33,18 +33,20 @@ spec:
 
       containers:
         - name: vllm
-          # Pinned NVIDIA release-tested image that BUNDLES the vllm-cosmos3
-          # plugin (vLLM 0.21.0). The plain vllm/vllm-openai image does NOT
-          # support the Cosmos3 architecture and fails at startup. This exact
-          # image + command were verified on an EC2 g6e (L40S 48GB): text and
-          # image reasoning both returned correct answers. See docs/DESIGN.md.
-          image: vllm/vllm-omni:cosmos3
+          # Linux AMD64 image digest resolved from vllm/vllm-omni:cosmos3 on
+          # 2026-08-22. A digest prevents later tag updates from changing the
+          # server build underneath this manifest.
+          image: vllm/vllm-omni@sha256:970dee6658ea223f615b2438ce41e47f1d5322225482546e6e6bc5d8134f757c
           imagePullPolicy: IfNotPresent
 
           command:
             - "vllm"
             - "serve"
             - "nvidia/Cosmos3-Nano"
+            # Hugging Face commit resolved on 2026-08-22. Keep this aligned
+            # with scripts/11-verify-runtime.sh.
+            - "--revision"
+            - "411f42a8fdfb8c5b2583cb8786e0938f49796eaa"
             - "--host"
             - "0.0.0.0"
             - "--port"
@@ -56,7 +58,9 @@ spec:
             # plenty for a PoC. Raise on larger-memory GPUs.
             - "--max-model-len"
             - "32768"
-            - "--async-scheduling"
+            # vLLM performs continuous batching by default. The selected c4
+            # profile maintains four client-side requests without changing
+            # scheduler or prefill defaults here.
             - "--allowed-local-media-path"
             - "/"
             - "--media-io-kwargs"

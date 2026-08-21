@@ -12,8 +12,11 @@ Primary references used by this PoC.
 ## vLLM
 - OpenAI-compatible server: https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
 - Docker deployment: https://docs.vllm.ai/en/latest/deployment/docker.html
-- Docker Hub image used by this sample (bundles the vllm-cosmos3 plugin):
-  https://hub.docker.com/r/vllm/vllm-omni/tags  (tag `cosmos3`)
+- Docker Hub image source used by this sample (the manifest pins its Linux
+  AMD64 digest rather than this mutable `cosmos3` tag):
+  https://hub.docker.com/r/vllm/vllm-omni/tags
+- vLLM architecture and scheduler design:
+  https://docs.vllm.ai/en/latest/design/arch_overview/
 
 ## Amazon EKS + GPU
 - Manage NVIDIA GPUs on EKS:

@@ -1,13 +1,17 @@
 SHELL := /usr/bin/env bash
 
-AWS_REGION ?= us-east-1
+AWS_REGION ?= us-west-2
 CLUSTER_NAME ?= cosmos3-vllm-poc
 
 # Override on the CLI, e.g. `make invoke-image IMAGE_URL=https://.../pic.jpg`
 IMAGE_URL ?=
 VIDEO_URL ?=
+LOAD_PAYLOAD ?= examples/load-test-text.json
+LOAD_REQUESTS ?= 40
+LOAD_CONCURRENCY ?= 4
+LOAD_WARMUP_REQUESTS ?= 4
 
-.PHONY: check tf-init tf-apply kubeconfig device-plugin hf-secret deploy wait port-forward invoke-text invoke-image invoke-video clean-k8s tf-destroy
+.PHONY: check tf-init tf-apply kubeconfig device-plugin hf-secret deploy wait verify-runtime port-forward invoke-text invoke-image invoke-video load-test clean-k8s tf-destroy
 
 check:
 	./scripts/00-check-prereqs.sh
@@ -33,6 +37,9 @@ deploy:
 wait:
 	./scripts/05-wait-cosmos-vllm.sh
 
+verify-runtime:
+	./scripts/11-verify-runtime.sh
+
 port-forward:
 	./scripts/06-port-forward.sh
 
@@ -45,6 +52,9 @@ invoke-image:
 invoke-video:
 	@test -n "$(VIDEO_URL)" || { echo "Set VIDEO_URL, e.g. make invoke-video VIDEO_URL=https://.../clip.mp4" >&2; exit 1; }
 	./scripts/09-invoke-video.sh $(VIDEO_URL)
+
+load-test:
+	python3 scripts/12-load-test.py --payload "$(LOAD_PAYLOAD)" --requests "$(LOAD_REQUESTS)" --concurrency "$(LOAD_CONCURRENCY)" --warmup-requests "$(LOAD_WARMUP_REQUESTS)"
 
 clean-k8s:
 	./scripts/10-clean-k8s.sh
