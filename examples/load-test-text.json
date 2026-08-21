@@ -1,0 +1,16 @@
+{
+  "model": "nvidia/Cosmos3-Nano",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a physical-world reasoning assistant."
+    },
+    {
+      "role": "user",
+      "content": "Describe why continuous batching improves GPU utilization in two sentences."
+    }
+  ],
+  "max_tokens": 64,
+  "temperature": 0,
+  "stream": false
+}

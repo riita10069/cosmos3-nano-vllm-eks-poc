@@ -38,6 +38,25 @@ Expected. `nvidia/Cosmos3-Nano` is ~16B params / BF16. Watch progress:
 kubectl -n cosmos logs deploy/cosmos3-nano-vllm -f
 ```
 
+## `make verify-runtime` fails
+
+Run the command after `make wait`; it expects a ready server pod. Its checks
+cover the pinned image digest, Hugging Face revision, serving arguments, GPU
+allocation, and `/v1/models`.
+
+```bash
+kubectl -n cosmos get deploy cosmos3-nano-vllm -o yaml
+kubectl -n cosmos get pods -l app=cosmos3-nano-vllm -o wide
+kubectl -n cosmos logs deploy/cosmos3-nano-vllm --tail=200
+kubectl get nodes -l workload=cosmos \
+  -o=custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu
+```
+
+Do not edit the image tag or omit `--revision` to work around a mismatch. If an
+upgrade is required, resolve a new image digest and model commit, update the
+manifest and verification script together, then run the smoke tests and
+benchmark again.
+
 ## Pod OOMs
 
 Use `g6e.2xlarge` instead of `g6e.xlarge`; increase memory request/limit; reduce
@@ -66,12 +85,33 @@ curl -v http://127.0.0.1:8000/v1/models
 If `/v1/models` returns the model id, the server is up. If the port-forward drops,
 the pod may still be initializing (not yet Ready) — re-check rollout status.
 
+## `make load-test` reports failed requests
+
+The generator sends requests to `http://127.0.0.1:8000` by default. Keep
+`make port-forward` running in another terminal and first run:
+
+```bash
+curl -sf http://127.0.0.1:8000/v1/models | jq .
+```
+
+Use one complete OpenAI chat-completions JSON object for `LOAD_PAYLOAD`. The
+script prints the payload SHA-256 so repeated runs can verify that the request
+content was identical.
+
+```bash
+make load-test LOAD_PAYLOAD=/absolute/path/to/request.json
+```
+
+For the latency-oriented profile, leave `LOAD_CONCURRENCY=4`. A value of 8 is a
+throughput profile and should have a substantially larger P95 latency for the
+ROAD workload.
+
 ## `Model architectures ['Cosmos3...'] are not supported`
 
 You are using the wrong image. The Cosmos3 architecture is only available in
-**`vllm/vllm-omni:cosmos3`** (bundles the `vllm-cosmos3` plugin), not in
-`vllm/vllm-openai`. The manifest already uses the omni image; if you changed it,
-change it back.
+the pinned `vllm/vllm-omni` image, which bundles the `vllm-cosmos3` plugin, not
+in `vllm/vllm-openai`. Restore the image digest in the manifest rather than the
+mutable `cosmos3` tag.
 
 ## Engine init `ValueError: ... KV cache is needed, which is larger than available`
 

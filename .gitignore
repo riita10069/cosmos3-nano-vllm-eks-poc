@@ -11,7 +11,6 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
-.terraform.lock.hcl
 
 # Never commit real tfvars (may contain account IDs, ARNs, image URIs)
 *.tfvars
@@ -27,3 +26,4 @@ terraform.rc
 *~
 .DS_Store
 *.swp
+__pycache__/

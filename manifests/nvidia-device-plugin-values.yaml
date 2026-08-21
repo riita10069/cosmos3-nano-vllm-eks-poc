@@ -1,0 +1,6 @@
+gfd:
+  enabled: true
+nfd:
+  worker:
+    tolerations:
+      - operator: Exists

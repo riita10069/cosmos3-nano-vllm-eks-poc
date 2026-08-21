@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${AWS_REGION:-us-west-2}"
 CLUSTER_NAME="${CLUSTER_NAME:-cosmos3-vllm-poc}"
 
 aws eks update-kubeconfig \

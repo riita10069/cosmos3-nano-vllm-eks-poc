@@ -8,6 +8,7 @@ required=(
   helm
   curl
   jq
+  python3
 )
 
 for bin in "${required[@]}"; do
