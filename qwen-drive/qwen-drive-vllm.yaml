@@ -1,0 +1,169 @@
+# Qwen-Drive-1.0-4B (VLM only) served by upstream vLLM on the existing
+# cosmos3-vllm-poc g6e.2xlarge (L40S 48GB) node group.
+# The init container converts the QwenDriveForPlanning checkpoint into a plain
+# Qwen3_5ForConditionalGeneration checkpoint (strip "vlm." prefix) on hostPath.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qwen-drive-vllm
+  namespace: cosmos
+  labels:
+    app: qwen-drive-vllm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qwen-drive-vllm
+  template:
+    metadata:
+      labels:
+        app: qwen-drive-vllm
+    spec:
+      nodeSelector:
+        workload: cosmos
+        accelerator: nvidia
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      initContainers:
+        - name: convert
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c"]
+          args:
+            - pip install --quiet "huggingface_hub>=0.34" && python /scripts/convert_qwen_drive.py /models/qwen-drive-1.0-4b
+          env:
+            - name: HF_HOME
+              value: /cache/huggingface
+            - name: QWEN_DRIVE_REVISION
+              value: 28484089a7cc8c335cf5089fb0745cf7c49b6eaa
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token-secret
+                  key: HF_TOKEN
+                  optional: true
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /cache/huggingface
+            - name: models
+              mountPath: /models
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: vllm
+          # vllm/vllm-openai:v0.32.0 (CUDA 13) linux/amd64, resolved 2026-10-20.
+          # The -cu129 variant fails: its torchcodec needs libnvrtc.so.13.
+          image: vllm/vllm-openai@sha256:6ee133356d49ed24cee03dd0cda3d3980279a11c107ce3e752c89e76540f41c9
+          imagePullPolicy: IfNotPresent
+          command:
+            - vllm
+            - serve
+            - /models/qwen-drive-1.0-4b
+            - --served-model-name
+            - Qwen/Qwen-Drive-1.0-4B
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --tensor-parallel-size
+            - "1"
+            - --max-model-len
+            - "32768"
+            - --allowed-local-media-path
+            - /
+            - --media-io-kwargs
+            - '{"video": {"num_frames": -1}}'
+            - --limit-mm-per-prompt
+            - '{"video": 1, "image": 0}'
+            # Videos with an odd number of frames (adaptive 21/23) reach
+            # 12.4k-13.2k embedding tokens; the default 12,288-token encoder
+            # cache rejects them mid-stream. The encoder cache follows this.
+            - --max-num-batched-tokens
+            - "16384"
+            - --generation-config
+            - vllm
+            # The benchmark client sends media_io_kwargs per request, exactly
+            # as in the Cosmos runs; the endpoint is only reachable through
+            # kubectl port-forward.
+            - --trust-request-mm-kwargs
+            # Splits <think> output into reasoning_content for the
+            # thinking-mode condition; non-thinking requests are unaffected.
+            - --reasoning-parser
+            - qwen3
+          env:
+            - name: HF_HOME
+              value: /cache/huggingface
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 30
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+          resources:
+            # Sized to fit any of g6e.xlarge/2xlarge/4xlarge (node group
+            # gpu-qwen-drive); a 4B model needs far less host RAM than Cosmos.
+            requests:
+              cpu: "3"
+              memory: 24Gi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 28Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /cache/huggingface
+            - name: models
+              mountPath: /models
+              readOnly: true
+            - name: benchmark-data
+              mountPath: /benchmark-data
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: hf-cache
+          hostPath:
+            path: /var/lib/cosmos3/huggingface
+            type: DirectoryOrCreate
+        - name: models
+          hostPath:
+            path: /var/lib/qwen-drive/models
+            type: DirectoryOrCreate
+        - name: benchmark-data
+          hostPath:
+            path: /var/lib/cosmos3/benchmark-data
+            type: DirectoryOrCreate
+        - name: scripts
+          configMap:
+            name: qwen-drive-convert
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qwen-drive-vllm
+  namespace: cosmos
+spec:
+  selector:
+    app: qwen-drive-vllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
